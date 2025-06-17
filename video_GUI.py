@@ -35,7 +35,8 @@ def edit_vid():
         ret, frame = cap.read()
         if ret == True:
             vidt.cv2.imshow('Frame', frame)
-            if vidt.cv2.waitKey(25) & 0xFF == ord('q'):
+            key = vidt.cv2.waitKey(25)
+            if  vidt.cv2.getWindowProperty('Frame', vidt.cv2.WND_PROP_VISIBLE) < 1:
                 break
         else:
             break
@@ -49,7 +50,8 @@ def play_video():
         ret, frame = cap.read()
         if ret == True:
             vidt.cv2.imshow('Frame', frame)
-            if vidt.cv2.waitKey(25) & 0xFF == ord('q'):
+            key = vidt.cv2.waitKey(25)
+            if vidt.cv2.getWindowProperty('Frame', vidt.cv2.WND_PROP_VISIBLE) < 1:
                 break
         else:
             break
