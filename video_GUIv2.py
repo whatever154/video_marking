@@ -4,7 +4,9 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 import tkinter.font as tkFont
 
-
+def window_closed(event):
+    if player.cap != "":
+        player.cap.release()
 
 def get_video():
     global vid_name, vid_path
@@ -41,9 +43,10 @@ def edit_vid():
     player.get_video(new_vid_path)
 
 def transition():
-    player.move.set(int(entry_frame.get()))
     player.paused = True
     player.paused_before_move = True
+    player.move.set(int(entry_frame.get()))
+    player.move.event_generate("<Motion>")
     player.move.event_generate("<ButtonRelease-1>")
 
 class VideoPlayer(Frame):
@@ -52,6 +55,7 @@ class VideoPlayer(Frame):
         super().__init__(relief=GROOVE, borderwidth=2)
         for i in range(1): self.rowconfigure(index=i,  weight=1)
         for i in range(1): self.columnconfigure(index=i,  weight=1)
+        self.cap = ""
         self.player = Canvas(self, bg="black")
         self.player.pack(fill=BOTH, expand=True)
         self.fr_control = Frame(self)
@@ -84,6 +88,7 @@ class VideoPlayer(Frame):
         self.move = Scale(self.fr_control, orient=HORIZONTAL, state="disabled")
         self.move.bind("<ButtonPress-1>", self.__move_pressed)
         self.move.bind("<ButtonRelease-1>", self.__move_released)
+        self.move.bind("<Motion>", self.__moved)
         self.move.grid(row=1, column=0, sticky=EW)
 
         self.fr_control.pack(fill=X)
@@ -118,6 +123,11 @@ class VideoPlayer(Frame):
         self.paused = True
     
     def __move_released(self, event):
+        if not self.paused_before_move:
+            self.paused = False
+            self.__play()
+    
+    def  __moved(self, event):
         self.cap.set(vidt.cv2.CAP_PROP_POS_FRAMES, int(self.move.get()))
         ret, frame = self.cap.read()
         if ret:
@@ -133,15 +143,13 @@ class VideoPlayer(Frame):
             photo = ImageTk.PhotoImage(image=img1)
             self.player.image = photo
             self.player.create_image(self.player.winfo_width() / 2, self.player.winfo_height() / 2, image=photo, anchor=CENTER)
-        if not self.paused_before_move:
-            self.paused = False
-            self.__play()
 
     def __left(self):
         self.paused = True
         self.paused_before_move = True
         if self.move.get() > self.move.cget("from"):
             self.move.set(self.move.get() - 1)
+            self.move.event_generate("<Motion>")
             self.move.event_generate("<ButtonRelease-1>")
 
     def __right(self):
@@ -149,9 +157,12 @@ class VideoPlayer(Frame):
         self.paused_before_move = True
         if self.move.get() < self.move.cget("to"):
             self.move.set(self.move.get() + 1)
+            self.move.event_generate("<Motion>")
             self.move.event_generate("<ButtonRelease-1>")
         
     def get_video(self, vid):
+        if player.cap != "":
+            player.cap.release()
         self.cap = vidt.cv2.VideoCapture(vid)
         self.paused = False
         self.frame_count = self.cap.get(vidt.cv2.CAP_PROP_FRAME_COUNT)-1
@@ -270,10 +281,6 @@ entry_frame.grid(row=1, column=0, sticky=W, padx=1)
 
 fr_select_frame.grid(row=1, column=0, sticky=W, pady=5, padx=3)
 
-
-
-
-
 fr_frame_transition.grid(row=0, column=1, rowspan=2, sticky=NSEW)
 
 fr_up.pack(anchor=NW, fill=X)
@@ -281,4 +288,5 @@ fr_up.pack(anchor=NW, fill=X)
 player = VideoPlayer()
 player.pack(fill=BOTH, expand=True, padx=5, pady=5)
 
+root.bind("<Destroy>", window_closed)
 root.mainloop()
