@@ -17,6 +17,7 @@ def get_positions(xml):
         for i in k.find_all("data:bbox"):
             framespan = i.get("framespan").split(":")
             for j in range(int(framespan[0]), int(framespan[1]) + 1):
+
                 if j not in frames:
                     frames[j] = []
                 frames[j].append({"color": obj_coolor,"height": int(i.get("height")), "width": int(i.get("width")), "x": int(i.get("x")), "y": int(i.get("y"))})
@@ -30,13 +31,7 @@ def video_edit(vid, change_frames, new_vid):
         ret, frame = cap.read()
         if ret:
             if count in change_frames:
-                overlay = frame.copy()
-                for i in change_frames[count]:
-                    cv2.rectangle(overlay, (i["x"], i["y"]), (i["x"] + i["width"], i["y"] + i["height"]),  tuple(int(x) for x in i["color"]), -1)
-                alpha = 0.4
-                new_frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
-                for i in change_frames[count]:
-                    cv2.rectangle(new_frame, (i["x"], i["y"]), (i["x"] + i["width"], i["y"] + i["height"]), (200, 0, 0), 1)
+                new_frame = put_rectangles(frame, change_frames[count])
                 edited_cap.write(new_frame)
             else:
                 edited_cap.write(frame)
@@ -46,3 +41,13 @@ def video_edit(vid, change_frames, new_vid):
     cap.release()
     edited_cap.release()
     cv2.destroyAllWindows()
+
+def put_rectangles(img, positions):
+    overlay = img.copy()
+    for i in positions:
+        cv2.rectangle(overlay, (i["x"], i["y"]), (i["x"] + i["width"], i["y"] + i["height"]),  tuple(int(x) for x in i["color"]), -1)
+    alpha = 0.4
+    new_frame = cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0)
+    for i in positions:
+        cv2.rectangle(new_frame, (i["x"], i["y"]), (i["x"] + i["width"], i["y"] + i["height"]), (200, 0, 0), 1)
+    return new_frame
