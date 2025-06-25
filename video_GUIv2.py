@@ -12,35 +12,21 @@ def get_video():
     global vid_name, vid_path
     vid_path = filedialog.askopenfilename(initialdir="/", filetypes=(("Видео", "*.mp4 *.avi"), ))
     vid_name.set(f"Видео: {vidt.os.path.basename(vid_path)}")
+    entry_frame.config(state="normal")
+    btn_transition_to_frame.config(state="active")
+    player.get_video(vid_path)
+    lbl_out_of.config(text=f"/{int(player.frame_count)}")
+
+def changed():
+    player.move.event_generate("<Motion>")
 
 def get_xml():
     global xml_name, xml_path
     xml_path = filedialog.askopenfilename(initialdir="/", filetypes=(("", "*.xml"), ))
-    xml_name.set(f"xml файл: {vidt.os.path.basename(xml_path)}")
-
-def edit_vid():
-    global vid_path, xml_path, new_vid_path, result
-    if vid_path == "":
-        result.set("Видео не выбрано")
-        return
-    if xml_path == "":
-        result.set("xml файл не выбран")
-        return
-    new_vid_path = filedialog.asksaveasfilename(initialdir="/", filetypes=(("", "*.avi"), ))
-    if new_vid_path == "":
-        return
-    if not new_vid_path.endswith(".avi"):
-        new_vid_path += ".avi"
-    frames = vidt.get_positions(xml_path)
-    vidt.video_edit(vid=vid_path, change_frames=frames, new_vid=new_vid_path)
-    result.set("Редактирование прошло успешно")
-
-    cap = vidt.cv2.VideoCapture(new_vid_path)
-    lbl_out_of.config(text=f"/{int(cap.get(vidt.cv2.CAP_PROP_FRAME_COUNT) - 1)}")
-    cap.release()
-    entry_frame.config(state="normal")
-    btn_transition_to_frame.config(state="active")
-    player.get_video(new_vid_path)
+    if xml_path != "":
+        xml_name.set(f"xml файл: {vidt.os.path.basename(xml_path)}")
+        player.get_positions(vidt.get_positions(xml_path))
+        btn_edit_video.config(state="active")
 
 def transition():
     player.paused = True
@@ -56,6 +42,7 @@ class VideoPlayer(Frame):
         for i in range(1): self.rowconfigure(index=i,  weight=1)
         for i in range(1): self.columnconfigure(index=i,  weight=1)
         self.cap = ""
+        self.positions = dict()
         self.player = Canvas(self, bg="black")
         self.player.pack(fill=BOTH, expand=True)
         self.fr_control = Frame(self)
@@ -131,18 +118,10 @@ class VideoPlayer(Frame):
         self.cap.set(vidt.cv2.CAP_PROP_POS_FRAMES, int(self.move.get()))
         ret, frame = self.cap.read()
         if ret:
-            img1 = Image.fromarray(vidt.cv2.cvtColor(frame, vidt.cv2.COLOR_BGR2RGB))
-            self.mod = img1.height / img1.width
-            if self.player.winfo_height() < self.player.winfo_width():
-                if self.player.winfo_height() / self.mod > self.player.winfo_width():
-                    img1 = img1.resize((int(self.player.winfo_width()), int(self.player.winfo_width()*self.mod)))
-                else:
-                    img1 = img1.resize((int(self.player.winfo_height() / self.mod), self.player.winfo_height()))
+            if self.check.get() and self.move.get() in self.positions:
+                self.__put_image(frame=frame, rectangles=self.positions[self.move.get()])
             else:
-                img1 = img1.resize((int(self.player.winfo_width()), int(self.player.winfo_width()*self.mod)))
-            photo = ImageTk.PhotoImage(image=img1)
-            self.player.image = photo
-            self.player.create_image(self.player.winfo_width() / 2, self.player.winfo_height() / 2, image=photo, anchor=CENTER)
+                self.__put_image(frame=frame)
 
     def __left(self):
         self.paused = True
@@ -172,40 +151,47 @@ class VideoPlayer(Frame):
         self.btn_play.config(state="normal")
         ret, frame = self.cap.read()
         if ret:
-            img1 = Image.fromarray(vidt.cv2.cvtColor(frame, vidt.cv2.COLOR_BGR2RGB))
-            self.mod = img1.height / img1.width
-            if self.player.winfo_height() < self.player.winfo_width():
-                if self.player.winfo_height() / self.mod > self.player.winfo_width():
-                    img1 = img1.resize((int(self.player.winfo_width()), int(self.player.winfo_width()*self.mod)))
-                else:
-                    img1 = img1.resize((int(self.player.winfo_height() / self.mod), self.player.winfo_height()))
+            if self.check.get() and self.move.get() in self.positions:
+                self.__put_image(frame=frame, rectangles=self.positions[self.move.get()])
             else:
-                img1 = img1.resize((int(self.player.winfo_width()), int(self.player.winfo_width()*self.mod)))
-            photo = ImageTk.PhotoImage(image=img1)
-            self.player.image = photo
-            self.player.create_image(self.player.winfo_width() / 2, self.player.winfo_height() / 2, image=photo, anchor=CENTER)
+                self.__put_image(frame=frame)
             self.framerate = int(1000 / self.cap.get(vidt.cv2.CAP_PROP_FPS )) - 15
             self.after(self.framerate, self.__play)
+    
+    def get_positions(self, pos):
+        self.positions = pos
+    
+    def check_add_rect(self, check):
+        self.check = check
      
     def __play(self):
         if not self.paused and self.move.get() < self.frame_count:
             if self.cap.isOpened:
                 ret, frame = self.cap.read()
                 if ret :
-                    img1 = Image.fromarray(vidt.cv2.cvtColor(frame, vidt.cv2.COLOR_BGR2RGB))
-                    self.mod = img1.height / img1.width
-                    if self.player.winfo_height() < self.player.winfo_width():
-                        if self.player.winfo_height() / self.mod > self.player.winfo_width():
-                            img1 = img1.resize((int(self.player.winfo_width()), int(self.player.winfo_width()*self.mod)))
-                        else:
-                            img1 = img1.resize((int(self.player.winfo_height() / self.mod), self.player.winfo_height()))
+                    if self.check.get() and self.move.get() in self.positions:
+                        self.__put_image(frame=frame, rectangles=self.positions[self.move.get()])
                     else:
-                        img1 = img1.resize((int(self.player.winfo_width()), int(self.player.winfo_width()*self.mod)))
-                    photo = ImageTk.PhotoImage(image=img1)
-                    self.player.image = photo
-                    self.player.create_image(self.player.winfo_width() / 2, self.player.winfo_height() / 2, image=photo, anchor=CENTER)
+                        self.__put_image(frame=frame)
                     self.move.set(self.move.get() + 1)
                     self.after(self.framerate, self.__play)
+    
+    def __put_image(self, frame, rectangles=[]):
+        if rectangles:
+            frame = vidt.put_rectangles(img=frame, positions=rectangles)
+        img1 = Image.fromarray(vidt.cv2.cvtColor(frame, vidt.cv2.COLOR_BGR2RGB))
+        self.mod = img1.height / img1.width
+        if self.player.winfo_height() < self.player.winfo_width():
+            if self.player.winfo_height() / self.mod > self.player.winfo_width():
+                img1 = img1.resize((int(self.player.winfo_width()), int(self.player.winfo_width()*self.mod)))
+            else:
+                img1 = img1.resize((int(self.player.winfo_height() / self.mod), self.player.winfo_height()))
+        else:
+            img1 = img1.resize((int(self.player.winfo_width()), int(self.player.winfo_width()*self.mod)))
+        photo = ImageTk.PhotoImage(image=img1)
+        self.player.image = photo
+        self.player.create_image(self.player.winfo_width() / 2, self.player.winfo_height() / 2, image=photo, anchor=CENTER)
+
 
 root = Tk()
 root.geometry("1000x800")
@@ -221,7 +207,8 @@ btn_get_videp = Button(fr_btns, text="Выбрать видео", command=get_vi
 btn_get_videp.grid(row=0, column=0, padx=5, pady=5)
 btn_get_xml = Button(fr_btns, text="Выбрать xml файл", command=get_xml)
 btn_get_xml.grid(row=0, column=1, padx=5, pady=5)
-btn_edit_video = Button(fr_btns, text="Изменить видео", command=edit_vid)
+check_rect = IntVar()
+btn_edit_video = Checkbutton(fr_btns, text="Изменить видео", variable=check_rect, state="disabled", command=changed)
 btn_edit_video.grid(row=0, column=2, padx=5, pady=5)
 
 fr_btns.grid(row=0, column=0, sticky=NW, rowspan=1)
@@ -234,16 +221,12 @@ for i in range(3): fr_data.rowconfigure(index=i,  weight=1)
 for i in range(1): fr_data.columnconfigure(index=i,  weight=1)
 vid_name = StringVar()
 xml_name = StringVar()
-result = StringVar()
 vid_name.set("Видео: ")
 xml_name.set("xml файл:")
 lbl_vid = Label(fr_data, textvariable=vid_name)
 lbl_vid.grid(row=0, column=0, sticky=NW)
 lbl_xml = Label(fr_data, textvariable=xml_name)
 lbl_xml.grid(row=1, column=0, sticky=NW)
-lbl_result = Label(fr_data, textvariable=result)
-lbl_result.grid(row=2, column=0, sticky=NW)
-
 fr_data.grid(row=1, column=0, sticky=NW, padx=5)
 
 fr_frame_transition = Frame(fr_up, relief="groove", borderwidth=2)
@@ -286,6 +269,7 @@ fr_frame_transition.grid(row=0, column=1, rowspan=2, sticky=NSEW)
 fr_up.pack(anchor=NW, fill=X)
 
 player = VideoPlayer()
+player.check_add_rect(check_rect)
 player.pack(fill=BOTH, expand=True, padx=5, pady=5)
 
 root.bind("<Destroy>", window_closed)
